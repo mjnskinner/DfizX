@@ -1,10 +1,11 @@
 # DfizX
 Disc flight physics in python
 
+.
 
+Disc Physics by Mike
 
-Disc Physics by Mike /n
-
+.
 
 Make the discs fly good 
 
