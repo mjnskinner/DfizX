@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
 import numpy as np
-
+import map_handler
 
 #####Coordinates
   #x,y,z coordinates in meters      
@@ -443,8 +443,8 @@ def do_throw (coordinates,velocity,throw_hyzer_angle= 0,disc = disc_Putter):
 
 
 ####Throw Constants
-coordinates = Vector(60,0,1)
-ground_roll = Vector(60,0,0)
+coordinates = Vector(65,0,1)
+ground_roll = Vector(65,0,0)
 
 flat = 0
 hyzer = 15
@@ -508,6 +508,33 @@ ax.set_ylim(0,175)
 ax.set_zlim(0,175)
 
 
+###map display stuff
+greenx = []
+greeny = []
+greenz = []
+brownx = []
+browny = []
+brownz = []
+map_handler.load_map_from_filepath ("test_map.bmp")
+for x in range(map_handler.collision_map.shape[0]):
+    for y in range(map_handler.collision_map.shape[1]):
+      for z in range(map_handler.collision_map.shape[2]):
+        if map_handler.collision_map [x][y][z] in range (71,80):
+          greenx = np.append (greenx,x)
+          greeny = np.append (greeny,y)
+          greenz = np.append (greenz,z)
+        elif map_handler.collision_map [x][y][z] in range (81,90):
+          greenx = np.append (greenx,x)
+          greeny = np.append (greeny,y)
+          greenz = np.append (greenz,z)
+        elif map_handler.collision_map [x][y][z] in range (91,100):
+          brownx = np.append (brownx,x)
+          browny = np.append (browny,y)
+          brownz = np.append (brownz,z)
+
+ax.scatter(greenx, greeny, greenz, c='g', marker='o')
+ax.scatter(brownx, browny, brownz, c='brown', marker='o')
+
 #normal ol' boring plot
 if not animate_plot:
   #plot coords and shadow
@@ -569,9 +596,6 @@ else:
         np.flipud(display_z), np.flipud(display_x2), np.flipud(display_y2), np.flipud(display_z2), array_length]), interval=(delta_t))
 
   plt.show()
-
-
-
 
 
 

@@ -25,6 +25,7 @@ z at 0 represents ground skippiness
 
 
 ####Main Routines
+#
 #       import_image (image_filepath)
 # take a filepath of an image and returns an image_array
 #
@@ -37,18 +38,29 @@ z at 0 represents ground skippiness
 #       make_collision_map (object_map)
 # takes object_map and creates a global collision_map from it, filled with collision_id value 
 
-collision_map = []
+
+#routines to make    %%%todo%%%%
+#load_map_from_filepath ()
+#filepath > loaded collision map
+#
+#create and maintain an object_map database?
+#
+# load_object_map ()    | load a saved object map from file
+# save_object_map ()    | save an object map to file
+# 
+
 
 
 #####Image filepath to image_array
 def import_image (image_filepath):   
   map_image = Image.open (image_filepath)
   image_array = np.array(map_image)
-  map_image.show()
-  image_array = np.flip(image_array,0)
+  image_array = np.rot90 (image_array,-1)
+  #map_image.show()
+  #image_array = np.flip(image_array,0)
   return image_array
   
-image_array = import_image ("test.bmp")  
+
 
 
 #####object_identities
@@ -85,14 +97,20 @@ giant_tree        = 107
 #returns an object identity based on a pixels rgb values
 def rgb_to_object_map (rgb):
   if rgb [0] == 0 and rgb [1] == 100 and rgb [2] == 0:
-    return bush
+    return small_bush
+  elif rgb [0] == 0 and rgb [1] == 110 and rgb [2] == 0:
+    return tall_bush
   elif rgb [0] == 0 and rgb [1] == 255 and rgb [2] == 0:
     return grass
+  elif rgb [0] == 100 and rgb [1] == 50 and rgb [2] == 0:
+    return medium_tree
   else:
     return 0
 
 #takes an image array and converts it to an object map    
 def make_object_map (image_array):
+  global object_map
+  object_map = []
   object_map = np.zeros ([image_array.shape[0],image_array.shape[1]])
   for x in range(image_array.shape[0]):
     for y in range(image_array.shape[1]):
@@ -108,15 +126,60 @@ def make_object_map (image_array):
 #collision map is a 3d array of ints that represent certain shapes and sizes of collidable objects and ground
 #z = 0  represents ground data 
 #z above zero represents collision data from z-1 meters to z meters
-def object_to_collision_mapping (x,y):
-  pass
 
+#when z > 0
+# int value of collision_map [x][y][z]  | defines
+#                                     0 | nothing
+                              #  91-100 | diameter of tree trunk in 0.1m increments
+                              #  81-90  | density (hit chance) of dense branchy foliage
+                              #  71-80  | desntiy (hit chance) of loose leafy foliage
+                              
+def add_collision_type (x,y,z,add_collision_type):
+  if add_collision_type > collision_map[x][y][z]:
+    collision_map[x][y][z] = add_collision_type
+    
+def object_to_collision_mapping (x,y,object_type):
+  if object_type == small_bush:
+    add_collision_type (x,y,1,89)
+  elif object_type == tall_bush:
+    add_collision_type (x,y,1,89)
+    add_collision_type (x,y,2,88)
+    add_collision_type (x,y,3,87)
+    add_collision_type (x,y,4,86)
+  elif object_type == medium_tree:
+    add_collision_type (x,y,1,95)
+    add_collision_type (x,y,2,95)
+    add_collision_type (x,y,3,95)
+    add_collision_type (x,y,4,95)
+    add_collision_type (x,y,5,95)
+    add_collision_type (x,y,6,90)
+    add_collision_type (x-1,y,6,85)
+    add_collision_type (x+1,y,6,85)
+    add_collision_type (x,y-1,6,85)
+    add_collision_type (x,y+1,6,85)
+    add_collision_type (x,y,7,85)
+    add_collision_type (x-1,y-1,6,75)
+    add_collision_type (x-1,y+1,6,75)
+    add_collision_type (x+1,y+1,6,75)
+    add_collision_type (x+1,y-1,6,75)
+    add_collision_type (x-1,y,7,73)
+    add_collision_type (x+1,y,7,73)
+    add_collision_type (x,y-1,7,73)
+    add_collision_type (x,y+1,7,73)
+    
 def make_collision_map (object_map):
   #collision map is 5m wider to make room for tree growth without error handling
   global collision_map
+  collision_map = []
   collision_map = np.zeros ([object_map.shape[0]+10,object_map.shape[1]+10,25])
   
   for x in range(object_map.shape[0]):
     for y in range(object_map.shape[1]):
       object_to_collision_mapping (x+5,y+5,object_map [x][y])
       #print (rgb_to_object_map (object_map [x][y]))
+      
+def load_map_from_filepath (filepath):
+  make_object_map (import_image (filepath))
+  make_collision_map (object_map)
+  
+#load_map_from_filepath ("test_map.bmp")
