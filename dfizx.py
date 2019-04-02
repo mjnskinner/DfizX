@@ -136,6 +136,14 @@ delta_t =  50
 #returns a Trajectory  (list of DiscStates)         %%%%Todo, add hand and throw type variable LHBH, RHFH...%%%%
 def do_throw (coordinates,velocity,throw_hyzer_angle= 0,disc = disc_Putter):
   
+  ####Flags
+  checking_for_aerial_collisions = True
+  
+  
+  
+  
+  
+  
   #Where the disc is thrown from as a vector in meters
   coords = copy.copy(coordinates)
   #The direction of travel for the disc in m/s
@@ -213,7 +221,7 @@ def do_throw (coordinates,velocity,throw_hyzer_angle= 0,disc = disc_Putter):
   loop_count = 0
   #                      %%%Todo: find better exit conditon%%%
   print ("Starting Speed: " + str(vel.magnitude()) + "      starting sping in rps: "+ str(rps))
-  while loop_count<400 and vel.magnitude()>0.5:
+  while loop_count<400 and vel.magnitude()>2:
   
     
     
@@ -236,7 +244,7 @@ def do_throw (coordinates,velocity,throw_hyzer_angle= 0,disc = disc_Putter):
         vel.z *= -0.1
         disc_normal_unit= global_up_vector
         vel =vel.divide(1+ 2 * time_coefficiant)
-      elif disc_unit_x.angle(global_up_vector) < 1.57:
+      elif disc_unit_x.angle(global_up_vector) < 1.57:    #roll
         print ("roll   on frame: " + str(loop_count))
         
         #flag variable to be checked during moments secti
@@ -249,19 +257,19 @@ def do_throw (coordinates,velocity,throw_hyzer_angle= 0,disc = disc_Putter):
         new_speed =old_speed * math.cos(vel_unit.angle(vel))
         
         vel = vel_unit.multiply(new_speed)  
-      else:
+      else:                                               #skip
         print ("skip   on frame: " + str(loop_count)+ "    speed in: "+str(vel.magnitude()))
         
         
         collision_normal = collision_vector.cross (disc_normal_unit)
       
         collision_normal = collision_normal.divide(collision_normal.magnitude())
-        #rps += vel.z 
+        rps += vel.z/5 
       
         #striking force on edge     force = mass * acceleration
         force = mass * vel.z * 0.8  #assuming 1 second "bounce" time    %%%%probably needs work%%%
         ####friction stuff         force will be negative
-        new_speed =vel.magnitude() + 0.2 * force / mass
+        new_speed =vel.magnitude() + 0.4 * force / mass
         vel = vel_unit.multiply (new_speed)
         #torque on edge
         pitching_moment = math.cos(disc_normal_unit.angle(global_up_vector)) * disc.radius * force
@@ -273,9 +281,8 @@ def do_throw (coordinates,velocity,throw_hyzer_angle= 0,disc = disc_Putter):
         disc_normal_unit= disc_normal_unit.sum(orientation_change)  
         disc_normal_unit= disc_normal_unit.divide(disc_normal_unit.magnitude())
         ## amount of bounce in the skip
-        vel.z *= -0.9
-      
-        
+        vel.z *= -0.8
+
       coords.z = 0.0
     else :
       #flag to not do rolling effects
@@ -284,7 +291,7 @@ def do_throw (coordinates,velocity,throw_hyzer_angle= 0,disc = disc_Putter):
     
     
     
-    
+    """
     #####Unit Vectors
     #vel_unit:  unit vector of total disc velocity
     #lift_unit: unit vector 90 degrees from vel_unit in line with discs 'up' vector
@@ -294,10 +301,7 @@ def do_throw (coordinates,velocity,throw_hyzer_angle= 0,disc = disc_Putter):
     #disc_unit_x:  unit vector of disc which points perpendicular to direction of travel but lays on the discs plane
     
     #rotation direction goes from disc_unit_x to disc_unit_y
-    
-    
-    
-    
+    """
     
     #####Unit Vectors for orientation of forces
     disc_normal_unit= make_unit_vector (disc_normal_unit)
@@ -386,7 +390,7 @@ def do_throw (coordinates,velocity,throw_hyzer_angle= 0,disc = disc_Putter):
       rolling_moment = disc_normalized_force_magnitude * disc.diameter / 2
       #total_force_vector = total_force_vector.sum (drag_force_vector.divide(10))
     else:
-      Wr = 0
+      rolling_moment = 0
       
       
       
@@ -414,9 +418,85 @@ def do_throw (coordinates,velocity,throw_hyzer_angle= 0,disc = disc_Putter):
     #####Integration of acceleration and displacement
     total_acceleration_vector = total_force_vector.multiply (seconds_over_mass)
     
-    #move the disc
-    coords = coords.sum(vel.multiply(time_coefficiant))
-    coords = coords.sum(total_acceleration_vector.divide(2))
+    
+    #####Collision checking for trees, bushes, and  %%%%future todo%%% baskets
+    """
+    Collision detection will check for collision with bushes and tree in movement steps of 1/10 the velocity
+    -given a max 30m/s release this would mean checking every 0.15m
+    This 1/10 application of velocity will be called a substep
+    
+    1 - check to see what collision_map coordinate the substep will move into
+    2 - perform a collision on the predicted movement
+    3a- if no collision is detected then move the disc this substep
+    3b- if a collision is detected then move the disc to the point of the collision and change the velocity based on the collision
+    4 - exit the loop when 10 substep have been completed
+    
+    some displacement will be lost on every 3b, but this should be uncommon enough to be negligable
+    """
+    if checking_for_aerial_collisions:
+      #vel_substep is one tenth the displacement of a normal simulation step
+      vel_substep = vel.multiply(time_coefficiant/10)
+      #used as the disc coordinates through the collision substeps  
+      coords_substep = coords
+      for substep in range (10):
+        #move the disc
+        coords_substep = coords_substep.sum (vel_substep)
+        #check to see if there is a collision in the new location
+        #detect_collision will return a list ["collision type as string",var1,var2(sometimes)]
+        collision_type = map_handler.detect_collision (coords_substep)
+        if collision_type[0] == "none":
+          pass
+        #collision with a tree trunk
+        elif collision_type [0] == "trunk":
+          #%%%todo%%% add pitching / rolling moment to tree collision
+          trunk_center = collision_type [1]
+          trunk_radius = collision_type [2]
+          #x and y distance of disc to trunk centers
+          x_distance = coords_substep.x - trunk_center.x
+          y_distance = coords_substep.y - trunk_center.y
+          center_center_distance = math.sqrt((x_distance)**2+(y_distance)**2)
+          #center to center distance required for a collision
+          collision_distance = trunk_radius + disc.radius
+          
+          #if there is a collision
+          if center_center_distance < collision_distance: 
+            print ("hit on frame " + str(loop_count))
+            
+            #flattening the vectors in order to do the collision in 2 space    %%%todo: look into 3 space solutions%%%
+            flat_vel = Vector (vel.x,vel.y,0)
+            trunk_normal = Vector (x_distance,y_distance,0)
+            trunk_normal = make_unit_vector (trunk_normal)
+            
+            #angle between velocity vector and the trunks normal at the collision point
+            collision_angle = flat_vel.angle(trunk_normal)
+            
+            #speed relative to the trunks normal
+            collision_vector = vel.multiply( math.cos (collision_angle))
+            collision_speed = collision_vector.magnitude ()
+            bounce_acceleration = trunk_normal.multiply(collision_speed*2)
+            
+            vel = vel.sum (bounce_acceleration)
+            #speed absorbed by bouncing   %%%todo: maximum force of bounce, based on rps maybe%%%^
+            vel = vel.multiply (0.8)
+            #recalculate the velocity substep after bounce
+            vel_substep = vel.multiply(time_coefficiant/10)
+            
+            #Place disc outside of trunk
+            correction_factor = collision_distance / center_center_distance
+            coords_substep = Vector (trunk_center.x+correction_factor*x_distance,trunk_center.y+correction_factor*y_distance,coords_substep.z)
+          else:
+            print ("no hit")
+        elif collision_type [0] == "foliage":
+          density = collision_type [1]
+        elif collision_type [0] == "branchy foliage":
+          density = collision_type [1]
+        elif collision_type [0] == "basket":
+          basket_center = collision_type [1]
+      coords = coords_substep
+    else:
+      coords = coords.sum(vel.multiply(time_coefficiant))
+      #coords = coords.sum(total_acceleration_vector.divide(2))
+      #^above is more accurate, but for the sake of simplicity in collision detection it is abstracted out
     #accelerate the disc
     vel = vel.sum (total_acceleration_vector)
     
@@ -430,6 +510,8 @@ def do_throw (coordinates,velocity,throw_hyzer_angle= 0,disc = disc_Putter):
     
     loop_count += 1  
   else:
+    if loop_count == 400:
+      print ("Simulation did not finish properly")
     disc_flight.finish_flight ()  
   return (disc_flight)
   
@@ -457,6 +539,11 @@ tomahawk = -90
 
 
 ########################################################################Throw Done Here#######################################################
+
+fig = plt.figure(figsize=(20, 10))
+ax = Axes3D(fig)#fig.add_subplot(111, projection='3d')
+map_handler.load_map_from_filepath ("test_map.bmp")
+
 #nominal speeds and angles for disc flights!!!
 #      direction, loft  ,  speed
 #Drivers   0    ,  9    ,   25
@@ -465,7 +552,7 @@ tomahawk = -90
 
 
 #big air shot
-test_throw = do_throw (coordinates,vector_from_direction_loft_speed (0,9,28),0,disc_Driver_S)
+test_throw = do_throw (coordinates,vector_from_direction_loft_speed (1.5,9,28),0,disc_Driver_S)
 #skip shot
 #test_throw = do_throw (coordinates,vector_from_direction_loft_speed (0,3,25),15,disc_Driver_OS)
 #test_throw = do_throw (coordinates,vector_from_direction_loft_speed (0,5,25),15,disc_Driver_OS)
@@ -480,8 +567,6 @@ animate_plot = 1
 
 
 #####Display Stuff
-fig = plt.figure(figsize=(20, 10))
-ax = Axes3D(fig)#fig.add_subplot(111, projection='3d')
 
 # build arrays of coords
 display_x = test_throw.pos_x + test_throw.orient_x
@@ -515,7 +600,7 @@ greenz = []
 brownx = []
 browny = []
 brownz = []
-map_handler.load_map_from_filepath ("test_map.bmp")
+
 for x in range(map_handler.collision_map.shape[0]):
     for y in range(map_handler.collision_map.shape[1]):
       for z in range(map_handler.collision_map.shape[2]):

@@ -1,7 +1,7 @@
 from PIL import Image 
 import numpy as np
-
-
+import vectors
+import math
 #####Overview
 """
 Map handler  
@@ -123,7 +123,7 @@ def make_object_map (image_array):
  
 ######object map to collision map
 
-#collision map is a 3d array of ints that represent certain shapes and sizes of collidable objects and ground
+#collision map is a 3d array of collision_id (ints) that represent certain shapes and sizes of collidable objects and ground
 #z = 0  represents ground data 
 #z above zero represents collision data from z-1 meters to z meters
 
@@ -182,4 +182,32 @@ def load_map_from_filepath (filepath):
   make_object_map (import_image (filepath))
   make_collision_map (object_map)
   
-#load_map_from_filepath ("test_map.bmp")
+#when z > 0
+# int value of collision_map [x][y][z]  | defines
+#                                     0 | nothing
+                              #  91-100 | diameter of tree trunk in 0.1m increments
+                              #  81-90  | density (hit chance) of dense branchy foliage
+                              #  71-80  | desntiy (hit chance) of loose leafy foliage
+
+
+#Returns a list that describes whether or not there is a collision and pertinant detail of the collision if there is one
+#["collision type:none|trunk|foliage..",var1:Vector|int,var2:int]                              
+def detect_collision (coordinates):
+  global collision_map
+  x = int(round(coordinates.x)) 
+  y = int(round(coordinates.y)) 
+  z = int(math.ceil(coordinates.z)) 
+  #make sure the given coordinates are within the bounds of the colliion map
+  if 0 <= x < collision_map.shape[0] and 0 <= y < collision_map.shape[1] and 0 <= z < collision_map.shape[2] :
+    collision_id = collision_map [x][y][z]
+    if 71 <= collision_id <= 80:
+      return ["foliage",10*(collision_id-70)]
+    elif 81 <= collision_id <= 90:
+      return ["branchy foliage",10*(collision_id-80)]
+    elif 91 <= collision_id <= 100:
+      return ["trunk",vectors.Vector(x,y,z),0.05*(collision_id-90)]
+    else:
+      return ["none"]
+  #if the coordinates are outside the collision map
+  else:
+    return ["none"]
